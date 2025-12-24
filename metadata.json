@@ -1,0 +1,7 @@
+{
+  "name": "Kuromi Brazilian Portuguese Tutor",
+  "description": "A Brazilian Portuguese speaking practice app with a Kuromi theme, featuring real-time voice calls, live subtitles, and post-session analysis.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

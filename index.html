@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kuromi Portuguese Tutor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              kuromi: {
+                purple: '#775BA7',
+                black: '#383838',
+                pink: '#F49AC0',
+                red: '#F2579D',
+                white: '#FFFFFF',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap');
+      body {
+        font-family: 'Nunito', sans-serif;
+        background-color: #383838;
+        margin: 0;
+        padding: 0;
+        color: white;
+        overscroll-behavior: none;
+      }
+      h1, h2, h3 {
+        font-family: 'Fredoka One', cursive;
+      }
+      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(119, 91, 167, 0.4); border-radius: 10px; }
+      
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+      }
+      .floating { animation: float 3s ease-in-out infinite; }
+
+      @keyframes glow-pulse {
+        0% { filter: drop-shadow(0 0 5px #775BA7) drop-shadow(0 0 2px #F49AC0); }
+        50% { filter: drop-shadow(0 0 20px #F2579D) drop-shadow(0 0 10px #775BA7); }
+        100% { filter: drop-shadow(0 0 5px #775BA7) drop-shadow(0 0 2px #F49AC0); }
+      }
+      .shining-glow {
+        animation: glow-pulse 2s infinite ease-in-out;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
