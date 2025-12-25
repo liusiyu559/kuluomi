@@ -63,24 +63,28 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
           : "European Portuguese (PT-PT).";
 
         const now = new Date();
-        const dateTimeString = now.toLocaleString();
+        const dateTimeString = now.toLocaleString('pt-BR');
+        const hour = now.getHours();
         
-        // Dynamic system instruction with time awareness and user profile
-        const instruction = `You are Kuromi-Sensei, a high-quality Brazilian Portuguese tutor. 
-        Language to use: ${langInstruction}.
-        Current Date/Time: ${dateTimeString}.
-        Student Profile: Name: ${userProfile.name}, Gender: ${userProfile.gender}, Birthday: ${userProfile.birthday}.
+        // 更强大的系统指令：强化身份、时间感知、话题引导
+        const instruction = `Você é a Kuromi-Sensei, uma professora de português brasileira sarcástica, fofa e muito competente.
+        Idioma de ensino: ${langInstruction}.
+        Data/Hora atual: ${dateTimeString}.
+        Perfil do Aluno: Nome: ${userProfile.name}, Gênero: ${userProfile.gender}, Data de Nascimento: ${userProfile.birthday}.
         
-        IDENTITY RULES:
-        1. YOU are Kuromi-Sensei. 
-        2. The student is NOT Kuromi. DO NOT call the student Kuromi, Kromi, or Sensei. Call them by their name: ${userProfile.name}.
-        3. Be cute, slightly mischievous but professional, and highly encouraging. Use "Kromi!" as a signature sound.
+        REGRAS DE IDENTIDADE:
+        1. VOCÊ é a Kuromi-Sensei. 
+        2. O aluno é o(a) ${userProfile.name}. NUNCA chame o aluno de "Kuromi" ou "Kromi". Chame-o pelo nome: ${userProfile.name}.
+        3. Use "Kromi!" ou "Aiaiai!" como interjeições fofas.
         
-        BEHAVIOR RULES:
-        - Be aware of the time/date. If it's very late, ask ${userProfile.name} why they are studying so late. 
-        - If today is a special holiday, bring it up. 
-        - Initiate the topic if the student is quiet.
-        - Focus on correct pronunciation and natural flow.`;
+        REGRAS DE COMPORTAMENTO TEMPORAL:
+        - Se for tarde da noite (ex: entre 23h e 05h), pergunte ao ${userProfile.name} por que ele(a) está estudando tão tarde e se não deveria estar dormindo.
+        - Se for feriado (como Natal, Ano Novo, Carnaval), puxe assunto sobre isso imediatamente.
+        - Comece a conversa perguntando algo relacionado ao momento do dia (café da manhã, trabalho, cansaço da noite).
+        
+        ESTILO DE ENSINO:
+        - Corrija erros de gramática de forma leve.
+        - Incentive o aluno a falar frases completas.`;
 
         const sessionPromise = ai.live.connect({
           model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -181,15 +185,13 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `You are Kuromi-Sensei. Answer ${userProfile.name}'s question: "${input}". 
+        contents: `Você é a Kuromi-Sensei. Responda à dúvida do aluno ${userProfile.name}: "${input}". 
         
-        RULES:
-        1. Intro paragraph: separate.
-        2. Body (Numbered list): separate paragraphs.
-        3. Conclusion: separate.
-        4. Use CHINESE for grammar explanations.
-        5. The student is ${userProfile.name}, NOT Kuromi.
-        6. FORMATTING: Wrap key terms in **double asterisks** and use “quotes” for examples.`,
+        REGRAS:
+        1. Explicações gramaticais em CHINÊS.
+        2. O aluno é o ${userProfile.name}, NÃO a Kuromi.
+        3. Formatação: **Negrito** para termos chave e “Aspas” para exemplos.
+        4. Seja fofa e direta.`,
       });
       
       setChatMessages(prev => [...prev, { role: 'ai', content: response.text || '' }]);
@@ -200,23 +202,14 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
     const lines = content.split('\n').filter(l => l.trim().length > 0);
     return lines.map((line, idx) => {
       const parts = line.split(/([“][^”]+[”])|(\*\*[^*]+\*\*)/g).filter(p => p !== undefined && p !== "");
-      
       return (
         <div key={idx} className="mb-4 last:mb-0 leading-relaxed">
           {parts.map((part, pIdx) => {
             if (part.startsWith('“') && part.endsWith('”')) {
-              return (
-                <div key={pIdx} className="my-2 py-2 px-4 bg-kuromi-pink/10 border-l-4 border-kuromi-pink italic text-kuromi-pink font-bold rounded-r-xl block text-base">
-                  {part}
-                </div>
-              );
+              return <span key={pIdx} className="text-kuromi-pink font-bold italic underline decoration-kuromi-pink/30">{part}</span>;
             }
             if (part.startsWith('**') && part.endsWith('**')) {
-              return (
-                <div key={pIdx} className="my-2 text-lg font-black text-kuromi-pink tracking-tight block scale-105 origin-left drop-shadow-sm uppercase">
-                  {part.replace(/\*\*/g, '')}
-                </div>
-              );
+              return <span key={pIdx} className="text-kuromi-pink font-black text-lg">{part.replace(/\*\*/g, '')}</span>;
             }
             return <span key={pIdx}>{part}</span>;
           })}
@@ -234,15 +227,15 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analyze this Portuguese conversation between Kuromi-Sensei and ${userProfile.name}: ${JSON.stringify(transcription)}. 
-        Generate pedagogical feedback in JSON for ${userProfile.name}.
-        REQUIREMENTS:
-        - topic: Main theme.
-        - idiomaticExpressions: Exactly 5 {expression, translation}.
-        - vocabulary: Exactly 5 {word, translation, level, example}.
-        - complexSentences: User errors and corrections {original, corrected, analysis}.
-        - classicPatterns: 5 patterns {pattern, explanation, example}.
-        Use Chinese for all explanations. Return ONLY JSON.`,
+        contents: `Analise a conversa entre Kuromi-Sensei e o aluno ${userProfile.name}: ${JSON.stringify(transcription)}. 
+        Gere feedback pedagógico JSON.
+        REQUISITOS:
+        - topic: Resumo curto.
+        - idiomaticExpressions: Exatamente 5 {expression, translation}.
+        - vocabulary: Exatamente 5 {word, translation, level, example}.
+        - complexSentences: Erros do aluno {original, corrected, analysis}.
+        - classicPatterns: 5 padrões {pattern, explanation, example}.
+        Use CHINÊS para explicações.`,
         config: { responseMimeType: 'application/json' }
       });
 
@@ -304,20 +297,20 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
       <div className="relative z-10 flex flex-col h-full p-6">
         <header className="flex justify-between items-center mb-6">
           <div className="flex gap-4">
-            <button onClick={() => setShowSubtitles(!showSubtitles)} className="p-4 bg-white/10 rounded-full text-kuromi-pink backdrop-blur-md">
+            <button onClick={() => setShowSubtitles(!showSubtitles)} className="p-4 bg-white/10 rounded-full text-kuromi-pink backdrop-blur-md shadow-lg">
               {showSubtitles ? <EyeOff size={28} /> : <Eye size={28} />}
             </button>
-            <button onClick={() => setIsFavorited(!isFavorited)} className={`p-4 bg-white/10 rounded-full backdrop-blur-md ${isFavorited ? 'text-kuromi-red' : 'text-gray-400'}`}>
+            <button onClick={() => setIsFavorited(!isFavorited)} className={`p-4 bg-white/10 rounded-full backdrop-blur-md shadow-lg ${isFavorited ? 'text-kuromi-red' : 'text-gray-400'}`}>
               <Heart size={28} fill={isFavorited ? "currentColor" : "none"} />
             </button>
           </div>
-          <div className="px-6 py-2 bg-kuromi-red rounded-full text-sm font-bold border border-white/20">LIVE</div>
+          <div className="px-6 py-2 bg-kuromi-red rounded-full text-sm font-bold border border-white/20 shadow-xl">AO VIVO</div>
         </header>
 
         <div className="flex-1 overflow-y-auto mb-24 space-y-4 custom-scrollbar">
           {showSubtitles && transcription.map((item, i) => (
             <div key={i} className={`flex ${item.speaker === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] px-5 py-3 rounded-2xl text-sm shadow-xl ${item.speaker === 'user' ? 'bg-kuromi-purple text-white' : 'bg-white text-kuromi-black font-semibold'}`}>
+              <div className={`max-w-[80%] px-5 py-3 rounded-2xl text-sm md:text-base shadow-2xl ${item.speaker === 'user' ? 'bg-kuromi-purple text-white rounded-tr-none' : 'bg-white text-kuromi-black font-semibold rounded-tl-none'}`}>
                 {item.text}
               </div>
             </div>
@@ -326,7 +319,7 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
         </div>
 
         <div className="absolute bottom-12 left-0 right-0 flex justify-center gap-12">
-          <button onClick={handleEndCall} className="p-8 bg-red-600 rounded-full text-white shadow-2xl border-4 border-white/20 animate-pulse active:scale-95 transition-all">
+          <button onClick={handleEndCall} className="p-8 bg-red-600 rounded-full text-white shadow-2xl border-4 border-white/20 hover:scale-105 active:scale-95 transition-all">
             <PhoneOff size={36} />
           </button>
         </div>
@@ -346,15 +339,15 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
 
       {showAssistant && (
         <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-lg flex items-center justify-center p-4">
-          <div className="bg-kuromi-black border-2 border-kuromi-purple rounded-[2.5rem] w-full max-w-sm h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 shadow-[0_0_50px_rgba(119,91,167,0.5)]">
+          <div className="bg-kuromi-black border-2 border-kuromi-purple rounded-[2.5rem] w-full max-w-sm h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 shadow-2xl">
             <div className="bg-kuromi-purple p-5 flex justify-between items-center text-white">
-              <span className="font-bold flex items-center gap-2"><Hand size={20}/> Perguntar à Sensei</span>
-              <button onClick={() => setShowAssistant(false)} className="p-1 hover:bg-white/20 rounded-full"><X size={24}/></button>
+              <span className="font-bold flex items-center gap-2"><Hand size={20}/> Ajuda da Sensei</span>
+              <button onClick={() => setShowAssistant(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors"><X size={24}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm custom-scrollbar bg-black/20">
               {chatMessages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60 space-y-2 text-center">
-                  <p className="italic">O que você não entendeu da nossa conversa, {userProfile.name}?</p>
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60 text-center">
+                  <p className="italic">Dúvida sobre o que falamos, {userProfile.name}?</p>
                 </div>
               )}
               {chatMessages.map((m, i) => (
@@ -364,11 +357,11 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
                   </div>
                 </div>
               ))}
-              {isChatLoading && <Loader2 className="animate-spin text-kuromi-pink mx-auto"/>}
+              {isChatLoading && <Loader2 className="animate-spin text-kuromi-pink mx-auto mt-4"/>}
               <div ref={transcriptionEndRef} />
             </div>
             <form onSubmit={handleAssistantChat} className="p-5 border-t border-white/10 flex gap-2 bg-black/40">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} className="flex-1 bg-gray-800 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 ring-kuromi-purple" placeholder="Tira-dúvidas..."/>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} className="flex-1 bg-gray-800 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 ring-kuromi-purple transition-all" placeholder="Tira-dúvidas..."/>
               <button className="p-3 bg-kuromi-pink rounded-2xl text-white shadow-lg active:scale-90 transition-all"><Send size={24}/></button>
             </form>
           </div>
@@ -376,9 +369,9 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, on
       )}
 
       {isConnecting && (
-        <div className="absolute inset-0 z-[100] bg-kuromi-black/95 flex flex-col items-center justify-center space-y-4">
+        <div className="absolute inset-0 z-[100] bg-kuromi-black flex flex-col items-center justify-center space-y-6">
           <Loader2 className="animate-spin text-kuromi-pink" size={64} />
-          <p className="font-bold text-kuromi-pink text-xl">Iniciando aula para {userProfile.name}...</p>
+          <p className="font-bold text-kuromi-pink text-xl tracking-tight">Sensei está vindo, {userProfile.name}...</p>
         </div>
       )}
 
