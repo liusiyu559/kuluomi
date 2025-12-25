@@ -2,17 +2,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { PhoneOff, Hand, Eye, EyeOff, Send, Loader2, Heart, X, AlertCircle } from 'lucide-react';
-import { VoiceType, ArchiveRecord, TranscriptionItem, ChatMessage, ReviewData, PortugueseType } from '../types';
+import { VoiceType, ArchiveRecord, TranscriptionItem, ChatMessage, ReviewData, PortugueseType, UserProfile } from '../types';
 import { createBlob, decode, decodeAudioData } from '../utils/audio-helpers';
 
 interface CallViewProps {
   voice: VoiceType;
   lang: PortugueseType;
+  userProfile: UserProfile;
   onEnd: (record: ArchiveRecord) => void;
   onCancel: () => void;
 }
 
-const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => {
+const CallView: React.FC<CallViewProps> = ({ voice, lang, userProfile, onEnd, onCancel }) => {
   const [isConnecting, setIsConnecting] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(true);
@@ -25,7 +26,6 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   
-  // Dragging state for assistant icon
   const [iconPos, setIconPos] = useState({ x: 20, y: 150 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0 });
@@ -62,6 +62,26 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
           ? "Brazilian Portuguese (PT-BR)."
           : "European Portuguese (PT-PT).";
 
+        const now = new Date();
+        const dateTimeString = now.toLocaleString();
+        
+        // Dynamic system instruction with time awareness and user profile
+        const instruction = `You are Kuromi-Sensei, a high-quality Brazilian Portuguese tutor. 
+        Language to use: ${langInstruction}.
+        Current Date/Time: ${dateTimeString}.
+        Student Profile: Name: ${userProfile.name}, Gender: ${userProfile.gender}, Birthday: ${userProfile.birthday}.
+        
+        IDENTITY RULES:
+        1. YOU are Kuromi-Sensei. 
+        2. The student is NOT Kuromi. DO NOT call the student Kuromi, Kromi, or Sensei. Call them by their name: ${userProfile.name}.
+        3. Be cute, slightly mischievous but professional, and highly encouraging. Use "Kromi!" as a signature sound.
+        
+        BEHAVIOR RULES:
+        - Be aware of the time/date. If it's very late, ask ${userProfile.name} why they are studying so late. 
+        - If today is a special holiday, bring it up. 
+        - Initiate the topic if the student is quiet.
+        - Focus on correct pronunciation and natural flow.`;
+
         const sessionPromise = ai.live.connect({
           model: 'gemini-2.5-flash-native-audio-preview-09-2025',
           config: {
@@ -69,7 +89,7 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } }
             },
-            systemInstruction: `You are Kuromi-Sensei. Language: ${langInstruction}. Be cute, encouraging, and focused on pedagogical value. Use "Kromi!" sounds occasionally.`,
+            systemInstruction: instruction,
             inputAudioTranscription: {},
             outputAudioTranscription: {},
           },
@@ -104,16 +124,16 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
                 const ctx = outputAudioContextRef.current!;
                 nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
                 const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
-                const source = ctx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(ctx.destination);
-                source.onended = () => {
-                  activeSourcesRef.current.delete(source);
+                const sourceNode = ctx.createBufferSource();
+                sourceNode.buffer = buffer;
+                sourceNode.connect(ctx.destination);
+                sourceNode.onended = () => {
+                  activeSourcesRef.current.delete(sourceNode);
                   if (activeSourcesRef.current.size === 0) setIsAiTalking(false);
                 };
-                source.start(nextStartTimeRef.current);
+                sourceNode.start(nextStartTimeRef.current);
                 nextStartTimeRef.current += buffer.duration;
-                activeSourcesRef.current.add(source);
+                activeSourcesRef.current.add(sourceNode);
               }
               if (msg.serverContent?.interrupted) {
                 activeSourcesRef.current.forEach(s => s.stop());
@@ -136,7 +156,7 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
       if (audioContextRef.current) audioContextRef.current.close();
       if (outputAudioContextRef.current) outputAudioContextRef.current.close();
     };
-  }, [voice, lang]);
+  }, [voice, lang, userProfile]);
 
   const updateTranscriptionUI = (speaker: 'user' | 'ai', text: string) => {
     setTranscription(prev => {
@@ -161,14 +181,15 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `You are Kuromi-Sensei. Answer the student's question: "${input}". 
+        contents: `You are Kuromi-Sensei. Answer ${userProfile.name}'s question: "${input}". 
         
         RULES:
         1. Intro paragraph: separate.
         2. Body (Numbered list): separate paragraphs.
         3. Conclusion: separate.
         4. Use CHINESE for grammar explanations.
-        5. FORMATTING: Wrap key terms in **double asterisks** and use “quotes” for examples.`,
+        5. The student is ${userProfile.name}, NOT Kuromi.
+        6. FORMATTING: Wrap key terms in **double asterisks** and use “quotes” for examples.`,
       });
       
       setChatMessages(prev => [...prev, { role: 'ai', content: response.text || '' }]);
@@ -185,7 +206,7 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
           {parts.map((part, pIdx) => {
             if (part.startsWith('“') && part.endsWith('”')) {
               return (
-                <div key={pIdx} className="my-2 py-2 px-4 bg-kuromi-pink/10 border-l-4 border-kuromi-pink italic text-kuromi-pink font-bold rounded-r-xl block text-base animate-in slide-in-from-left-2">
+                <div key={pIdx} className="my-2 py-2 px-4 bg-kuromi-pink/10 border-l-4 border-kuromi-pink italic text-kuromi-pink font-bold rounded-r-xl block text-base">
                   {part}
                 </div>
               );
@@ -211,18 +232,17 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      // Improved feedback generation prompt for guaranteed 5-item lists
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analyze this Portuguese conversation: ${JSON.stringify(transcription)}. 
-        Generate a detailed pedagogical feedback in JSON.
+        contents: `Analyze this Portuguese conversation between Kuromi-Sensei and ${userProfile.name}: ${JSON.stringify(transcription)}. 
+        Generate pedagogical feedback in JSON for ${userProfile.name}.
         REQUIREMENTS:
-        - topic: Main theme summary.
-        - idiomaticExpressions: Exactly 5 items. Each with {expression, translation}.
-        - vocabulary: Exactly 5 items. Each with {word, translation, level, example}.
-        - complexSentences: Exactly 3-5 items showing user errors and corrections. Each with {original, corrected, analysis}.
-        - classicPatterns: Exactly 5 items of sentence patterns for this topic. Each with {pattern, explanation, example}.
-        Use Chinese for all explanations and translations. Return ONLY the JSON object.`,
+        - topic: Main theme.
+        - idiomaticExpressions: Exactly 5 {expression, translation}.
+        - vocabulary: Exactly 5 {word, translation, level, example}.
+        - complexSentences: User errors and corrections {original, corrected, analysis}.
+        - classicPatterns: 5 patterns {pattern, explanation, example}.
+        Use Chinese for all explanations. Return ONLY JSON.`,
         config: { responseMimeType: 'application/json' }
       });
 
@@ -237,16 +257,13 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
         portugueseType: lang,
         isFavorited,
         assistantChat: chatMessages,
-        selfCheckSearches: [],
-        selfCheckReflections: []
+        userProfile: userProfile
       });
     } catch (e) {
-      console.error("Feedback generation failed:", e);
-      onEnd({ id: Date.now().toString(), date: new Date().toLocaleDateString(), duration, transcription, review: null, voice, portugueseType: lang, isFavorited, assistantChat: chatMessages });
+      onEnd({ id: Date.now().toString(), date: new Date().toLocaleDateString(), duration, transcription, review: null, voice, portugueseType: lang, isFavorited, assistantChat: chatMessages, userProfile });
     }
   };
 
-  // Drag handlers for assistant icon
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -259,20 +276,14 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
       if (!isDragging) return;
       const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
       const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
-      
       const dx = clientX - dragRef.current.startX;
       const dy = clientY - dragRef.current.startY;
-      
       setIconPos({
         x: Math.max(0, Math.min(window.innerWidth - 64, dragRef.current.initialX + dx)),
         y: Math.max(0, Math.min(window.innerHeight - 64, dragRef.current.initialY + dy))
       });
     };
-
-    const handleEnd = () => {
-      if (isDragging) setIsDragging(false);
-    };
-
+    const handleEnd = () => setIsDragging(false);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleEnd);
     window.addEventListener('touchmove', handleMove);
@@ -326,10 +337,8 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
         style={{ left: `${iconPos.x}px`, top: `${iconPos.y}px` }}
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
-        onClick={(e) => {
-          if (Math.abs(dragRef.current.initialX - iconPos.x) < 5) {
-             setShowAssistant(true);
-          }
+        onClick={() => {
+          if (!isDragging) setShowAssistant(true);
         }}
       >
         <img src="https://files.catbox.moe/5ixxct.png" className="w-16 h-16 object-contain shining-glow pointer-events-none" alt="Kuromi" />
@@ -338,15 +347,14 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
       {showAssistant && (
         <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-lg flex items-center justify-center p-4">
           <div className="bg-kuromi-black border-2 border-kuromi-purple rounded-[2.5rem] w-full max-w-sm h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 shadow-[0_0_50px_rgba(119,91,167,0.5)]">
-            <div className="bg-kuromi-purple p-5 flex justify-between items-center text-white shadow-md">
-              <span className="font-bold flex items-center gap-2"><Hand size={20}/> Perguntar à Kromi</span>
+            <div className="bg-kuromi-purple p-5 flex justify-between items-center text-white">
+              <span className="font-bold flex items-center gap-2"><Hand size={20}/> Perguntar à Sensei</span>
               <button onClick={() => setShowAssistant(false)} className="p-1 hover:bg-white/20 rounded-full"><X size={24}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm custom-scrollbar bg-black/20">
               {chatMessages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60 space-y-2">
-                  <img src="https://files.catbox.moe/iyf2zl.png" className="w-24 h-24 rounded-full border-2 border-kuromi-purple mb-2" />
-                  <p className="italic">O que você não entendeu da conversa?</p>
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60 space-y-2 text-center">
+                  <p className="italic">O que você não entendeu da nossa conversa, {userProfile.name}?</p>
                 </div>
               )}
               {chatMessages.map((m, i) => (
@@ -356,16 +364,11 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
                   </div>
                 </div>
               ))}
-              {isChatLoading && (
-                <div className="flex gap-2 items-center text-kuromi-pink font-bold">
-                  <Loader2 className="animate-spin" size={20}/>
-                  <span>Pensando...</span>
-                </div>
-              )}
+              {isChatLoading && <Loader2 className="animate-spin text-kuromi-pink mx-auto"/>}
               <div ref={transcriptionEndRef} />
             </div>
             <form onSubmit={handleAssistantChat} className="p-5 border-t border-white/10 flex gap-2 bg-black/40">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} className="flex-1 bg-gray-800 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 ring-kuromi-purple transition-all" placeholder="Tira-dúvidas..."/>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} className="flex-1 bg-gray-800 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 ring-kuromi-purple" placeholder="Tira-dúvidas..."/>
               <button className="p-3 bg-kuromi-pink rounded-2xl text-white shadow-lg active:scale-90 transition-all"><Send size={24}/></button>
             </form>
           </div>
@@ -375,7 +378,7 @@ const CallView: React.FC<CallViewProps> = ({ voice, lang, onEnd, onCancel }) => 
       {isConnecting && (
         <div className="absolute inset-0 z-[100] bg-kuromi-black/95 flex flex-col items-center justify-center space-y-4">
           <Loader2 className="animate-spin text-kuromi-pink" size={64} />
-          <p className="font-bold text-kuromi-pink text-xl">Kromi está preparando a aula...</p>
+          <p className="font-bold text-kuromi-pink text-xl">Iniciando aula para {userProfile.name}...</p>
         </div>
       )}
 

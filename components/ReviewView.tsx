@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, BookOpen, Star, Zap, MessageCircle, Heart, History, Search, Book, Loader2, Save, Clock, Calendar, CheckCircle2, AlertCircle, Headphones, Layout, Edit3 } from 'lucide-react';
 import { ArchiveRecord, SelfCheckItem } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 interface ReviewViewProps {
   record: ArchiveRecord;
@@ -12,7 +12,7 @@ interface ReviewViewProps {
 }
 
 const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorite, onUpdateRecord }) => {
-  const { review, transcription, assistantChat = [], selfCheckSearches = [], selfCheckReflections = [] } = record;
+  const { review, transcription, assistantChat = [], selfCheckSearches = [], selfCheckReflections = [], userProfile } = record;
   const [activeTab, setActiveTab] = useState<'review' | 'history' | 'assistant' | 'selfcheck'>('review');
   
   // Search state
@@ -28,14 +28,34 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
     setIsSearching(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Structured JSON response for concise results
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Explique detalhadamente o termo ou expressão "${searchQuery}" em português ${record.portugueseType}. 
-        Use chinês para explicar o significado e forneça exemplos de uso.`,
+        contents: `Translate and explain "${searchQuery}" in Portuguese (${record.portugueseType}). 
+        Keep it very brief. Return a JSON with translation (Chinese) and example (Portuguese). No long explanations.`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translation: { type: Type.STRING },
+              example: { type: Type.STRING }
+            },
+            required: ['translation', 'example']
+          }
+        }
       });
-      setSearchResult({ query: searchQuery, answer: response.text || '' });
+      
+      const resData = JSON.parse(response.text || '{}');
+      setSearchResult({ 
+        query: searchQuery, 
+        answer: `${resData.translation}\n\nEx: ${resData.example}`,
+        translation: resData.translation,
+        example: resData.example
+      });
     } catch (e) { 
       console.error(e); 
+      setSearchResult({ query: searchQuery, answer: "Erro ao buscar significado. Tente novamente." });
     } finally { 
       setIsSearching(false); 
     }
@@ -69,10 +89,13 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
       
       <header className="relative z-20 p-6 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-3 bg-white/10 rounded-full text-kuromi-pink transition-all active:scale-90"><ArrowLeft size={24} /></button>
-          <h2 className="text-xl font-bold text-white tracking-tight">Relatório Kuromi</h2>
+          <button onClick={onBack} className="p-3 bg-white/10 rounded-full text-kuromi-pink active:scale-90"><ArrowLeft size={24} /></button>
+          <div className="flex flex-col">
+            <h2 className="text-xl font-bold text-white tracking-tight">Relatório de Aula</h2>
+            <span className="text-[10px] text-kuromi-pink font-bold uppercase tracking-wider">Aluno: {userProfile?.name || 'Visitante'}</span>
+          </div>
         </div>
-        <button onClick={onToggleFavorite} className={`p-3 rounded-full transition-all border border-white/5 ${record.isFavorited ? 'text-kuromi-red bg-white/10' : 'text-gray-400'}`}>
+        <button onClick={onToggleFavorite} className={`p-3 rounded-full border border-white/5 ${record.isFavorited ? 'text-kuromi-red bg-white/10' : 'text-gray-400'}`}>
           <Heart size={28} fill={record.isFavorited ? "currentColor" : "none"} />
         </button>
       </header>
@@ -139,10 +162,10 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
                 </section>
 
                 <section className="space-y-4">
-                  <h3 className="text-red-400 font-bold text-xs flex items-center gap-2 uppercase tracking-widest"><MessageCircle size={16}/> 你的纠错建议 (Correções)</h3>
+                  <h3 className="text-red-400 font-bold text-xs flex items-center gap-2 uppercase tracking-widest"><MessageCircle size={16}/> 纠错建议 (Correções)</h3>
                   <div className="space-y-4">
                     {review.complexSentences && review.complexSentences.length > 0 ? review.complexSentences.map((s, i) => (
-                      <div key={i} className="bg-black/40 p-5 rounded-2xl border border-red-500/10 space-y-3 shadow-md">
+                      <div key={i} className="bg-black/40 p-5 rounded-2xl border border-red-500/10 space-y-3">
                         <div className="space-y-1">
                           <p className="text-[9px] text-red-400 font-bold uppercase tracking-tighter">你说的:</p>
                           <p className="text-sm text-gray-400 line-through decoration-red-500/50 italic">"{s.original}"</p>
@@ -153,11 +176,11 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
                         </div>
                         <p className="text-[11px] text-gray-300 leading-relaxed bg-white/5 p-4 rounded-xl italic border border-white/5">{s.analysis}</p>
                       </div>
-                    )) : <p className="text-center text-gray-500 py-10 text-xs italic">Muito bem! Sua fala foi perfeita!</p>}
+                    )) : <p className="text-center text-gray-500 py-10 text-xs italic">Muito bem, {userProfile?.name}! Sua fala foi excelente.</p>}
                   </div>
                 </section>
               </>
-            ) : <div className="h-64 flex flex-col items-center justify-center opacity-40 space-y-4"><Loader2 className="animate-spin text-kuromi-pink" size={40}/><p className="font-bold text-xs">Kromi está gerando o relatório...</p></div>}
+            ) : <div className="h-64 flex flex-col items-center justify-center opacity-40 space-y-4"><Loader2 className="animate-spin text-kuromi-pink" size={40}/><p className="font-bold text-xs">Sensei está gerando o relatório...</p></div>}
           </div>
         )}
 
@@ -177,7 +200,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
               <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-xs whitespace-pre-line leading-relaxed shadow-lg ${m.role === 'user' ? 'bg-kuromi-purple text-white rounded-tr-none' : 'bg-gray-800 text-kuromi-pink border border-white/5 rounded-tl-none'}`}>{m.content}</div>
               </div>
-            )) : <p className="text-center text-xs text-gray-500 py-10 italic">Sem registros de ajuda nesta sessão.</p>}
+            )) : <p className="text-center text-xs text-gray-500 py-10 italic">Sem registros nesta sessão.</p>}
           </div>
         )}
 
@@ -188,7 +211,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
               <div className="flex gap-2 mb-4">
                 <input 
                   className="flex-1 bg-gray-800 rounded-2xl px-5 py-3 text-sm text-white outline-none border border-white/5 focus:ring-2 ring-kuromi-pink transition-all" 
-                  placeholder="Pesquisar termo..." 
+                  placeholder="Expressão ou termo..." 
                   value={searchQuery} 
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -204,7 +227,16 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
               
               {searchResult && (
                 <div className="mt-4 p-5 bg-kuromi-pink/10 rounded-2xl border border-kuromi-pink/20 space-y-4 animate-in zoom-in-95">
-                  <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed italic">{searchResult.answer}</p>
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-kuromi-pink border-b border-kuromi-pink/20 pb-1">Significado:</p>
+                    <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{searchResult.translation || searchResult.answer}</p>
+                    {searchResult.example && (
+                      <>
+                        <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-widest">Exemplo prático:</p>
+                        <p className="text-xs italic text-gray-300 p-2 bg-black/40 rounded-lg">{searchResult.example}</p>
+                      </>
+                    )}
+                  </div>
                   <button onClick={confirmSaveSearch} className="w-full py-4 bg-kuromi-pink text-white rounded-2xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all">
                     <Save size={16}/> Salvar no Feedback
                   </button>
@@ -213,14 +245,17 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
 
               {selfCheckSearches.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-white/5 space-y-4">
-                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Histórico de Pesquisa</p>
+                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Glossário Personalizado</p>
                    {selfCheckSearches.map((item, idx) => (
                      <details key={idx} className="group bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
                        <summary className="list-none p-4 text-sm font-bold text-kuromi-pink cursor-pointer flex justify-between items-center group-open:bg-kuromi-purple/20">
                          {item.query}
                          <span className="text-xs transition-transform group-open:rotate-180">▼</span>
                        </summary>
-                       <div className="p-4 text-xs text-gray-400 leading-relaxed border-t border-white/5">{item.answer}</div>
+                       <div className="p-4 text-xs text-gray-300 leading-relaxed border-t border-white/5 space-y-2">
+                         <p>{item.translation || item.answer}</p>
+                         {item.example && <p className="italic text-gray-500 border-l-2 border-kuromi-pink pl-2">{item.example}</p>}
+                       </div>
                      </details>
                    ))}
                 </div>
@@ -231,7 +266,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
               <h3 className="text-md font-bold text-white mb-4 flex items-center gap-3 tracking-tight"><Book size={22} className="text-blue-400"/> Notebook de Reflexão</h3>
               <div className="space-y-4 mb-6">
                 {selfCheckReflections.length === 0 ? (
-                  <p className="text-xs text-gray-500 italic text-center py-4">Nenhuma reflexão ainda. O que você aprendeu hoje?</p>
+                  <p className="text-xs text-gray-500 italic text-center py-4">O que você aprendeu com a Sensei hoje, {userProfile?.name}?</p>
                 ) : (
                   selfCheckReflections.map((ref, idx) => (
                     <div key={idx} className="bg-white/5 p-4 rounded-2xl border border-blue-400/10 text-sm text-gray-300 italic shadow-inner">
@@ -242,12 +277,12 @@ const ReviewView: React.FC<ReviewViewProps> = ({ record, onBack, onToggleFavorit
               </div>
               <textarea 
                 className="w-full bg-gray-800 rounded-2xl p-5 text-sm text-white min-h-[140px] outline-none border border-white/5 focus:ring-2 ring-blue-400 transition-all resize-none" 
-                placeholder="Escreva seus insights aqui..." 
+                placeholder="Hoje eu aprendi que..." 
                 value={reflectionInput} 
                 onChange={(e) => setReflectionInput(e.target.value)} 
               />
               <button onClick={handleSaveReflection} className="w-full mt-4 py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
-                Fixar Reflexão
+                Salvar Insight
               </button>
             </section>
           </div>

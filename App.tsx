@@ -4,7 +4,7 @@ import Home from './components/Home';
 import CallView from './components/CallView';
 import ReviewView from './components/ReviewView';
 import ArchiveView from './components/ArchiveView';
-import { VoiceType, ArchiveRecord, ReviewData, PortugueseType } from './types';
+import { VoiceType, ArchiveRecord, ReviewData, PortugueseType, UserProfile } from './types';
 
 type Screen = 'home' | 'call' | 'review' | 'archive';
 
@@ -14,17 +14,27 @@ const App: React.FC = () => {
   const [selectedLang, setSelectedLang] = useState<PortugueseType>(PortugueseType.BRAZIL);
   const [archives, setArchives] = useState<ArchiveRecord[]>([]);
   const [currentSession, setCurrentSession] = useState<ArchiveRecord | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('kuromi_archives');
-    if (stored) {
-      setArchives(JSON.parse(stored));
+    const storedArchives = localStorage.getItem('kuromi_archives');
+    if (storedArchives) {
+      setArchives(JSON.parse(storedArchives));
+    }
+    const storedProfile = localStorage.getItem('kuromi_profile');
+    if (storedProfile) {
+      setUserProfile(JSON.parse(storedProfile));
     }
   }, []);
 
   const saveArchives = (updated: ArchiveRecord[]) => {
     setArchives(updated);
     localStorage.setItem('kuromi_archives', JSON.stringify(updated));
+  };
+
+  const saveProfile = (profile: UserProfile) => {
+    setUserProfile(profile);
+    localStorage.setItem('kuromi_profile', JSON.stringify(profile));
   };
 
   const saveToArchive = (record: ArchiveRecord) => {
@@ -69,15 +79,18 @@ const App: React.FC = () => {
           setVoice={setSelectedVoice}
           selectedLang={selectedLang}
           setLang={setSelectedLang}
+          userProfile={userProfile}
+          onSaveProfile={saveProfile}
           onStart={startNewCall}
           onViewArchive={() => setCurrentScreen('archive')}
         />
       )}
       
-      {currentScreen === 'call' && (
+      {currentScreen === 'call' && userProfile && (
         <CallView 
           voice={selectedVoice} 
           lang={selectedLang}
+          userProfile={userProfile}
           onEnd={finishCall}
           onCancel={() => setCurrentScreen('home')}
         />

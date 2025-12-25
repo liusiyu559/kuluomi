@@ -9,6 +9,12 @@ export enum PortugueseType {
   PORTUGAL = 'PT'
 }
 
+export interface UserProfile {
+  name: string;
+  gender: string;
+  birthday: string;
+}
+
 export interface TranscriptionItem {
   speaker: 'user' | 'ai';
   text: string;
@@ -49,6 +55,8 @@ export interface ReviewData {
 export interface SelfCheckItem {
   query: string;
   answer: string;
+  translation?: string;
+  example?: string;
 }
 
 export interface ChatMessage {
@@ -68,4 +76,5 @@ export interface ArchiveRecord {
   selfCheckSearches?: SelfCheckItem[];
   selfCheckReflections?: string[];
   assistantChat?: ChatMessage[];
+  userProfile?: UserProfile;
 }
